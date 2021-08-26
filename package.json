@@ -15,7 +15,8 @@
   "license": "MIT",
   "scripts": {
     "test": "dune test",
-    "format": "dune build @fmt --auto-promote"
+    "format": "dune build @fmt --auto-promote",
+    "watch": "dune build --watch --terminal-persistence=clear-on-rebuild"
   },
   "dependencies": {
     "ocaml": "4.12.",
@@ -48,7 +49,8 @@
     "@opam/utop": "*",
     "@opam/menhir": "20210419",
     "@esy-ocaml/rtop": "*",
-    "@reason-native/rely": "*"
+    "@reason-native/rely": "*",
+    "@opam/ocamldepdot": "*"
   },
   "resolutions": {
     "@esy-ocaml/rtop": "ManasJayanth/reason:rtop.json#cb5afe1df701cfc92321f2123fce2dcad39a02aa",
@@ -59,6 +61,7 @@
     "@opam/piaf": "github:EduardoRFS/piaf:piaf.opam#8e4eeb916aef8e95f04d98eef57c43f07008b631",
     "@opam/ssl": "github:Firgeis/ocaml-ssl:ssl.opam#f7524f7b6db756ce4097dea7fa4e1c4f4f2832a9",
     "@opam/opium": "github:EduardoRFS/opium:opium.opam#9fdbfbd0eedf238e1be0663ab95977be27d9a6e1",
-    "@opam/rock": "github:EduardoRFS/opium:rock.opam#9fdbfbd0eedf238e1be0663ab95977be27d9a6e1"
+    "@opam/rock": "github:EduardoRFS/opium:rock.opam#9fdbfbd0eedf238e1be0663ab95977be27d9a6e1",
+    "@opam/ocamldepdot": "github:d4hines/ocamldepdot#7f4ef69c8297ec37243f861674c97664d63b6f50"
   }
 }

@@ -1,0 +1,45 @@
+name: Dependency Graph
+
+on: [push, pull_request]
+
+jobs:
+  dependency_graph:
+    name: dependency_graph
+
+    strategy:
+      matrix:
+        system: [ubuntu]
+
+    runs-on: ${{ matrix.system }}-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
+      - name: Install esy
+        run: npm install -g @esy-nightly/esy
+      
+      - uses: esy/github-action@master
+        with:
+          cache-key: ${{ matrix.system }}-dependency_graph-${{ hashFiles('esy.lock/index.json') }}
+
+      - name: Create Dependency Graph
+        run: esy ocamldep \
+          -I node \
+          -I protocol \
+          -I helpers \
+          -I bin \
+          -pp 'refmt --print binary' \
+          -ml-synonym .re \
+          node/*.re protocol/*.re helpers/*.re bin/*.re | esy ocamldepdot -fullgraph > deps.dot
+
+      - name: Archive Dependency Graph
+        uses: actions/upload-artifact@v2
+        with:
+          name: dependency_graph
+          path: deps.dot
+
+      # We should pull these and render with https://github.com/mountainstorm/jquery.graphviz.svg/
+      
