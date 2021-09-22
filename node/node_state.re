@@ -32,6 +32,7 @@ type t = {
   // TODO: this also needs to be cleaned in the future
   recent_operation_results:
     BLAKE2B.Map.t([ | `Transaction | `Withdraw(Ledger.Handle.t)]),
+  state_root_hash_list: list((BLAKE2B.t, BLAKE2B.t, float)),
 };
 
 let make =
@@ -68,6 +69,13 @@ let make =
     uri_state: Uri_map.empty,
     validators_uri: initial_validators_uri,
     recent_operation_results: BLAKE2B.Map.empty,
+    state_root_hash_list: [
+      (
+        Block.genesis.state_root_hash,
+        Validators.hash(Validators.empty),
+        Unix.time(),
+      ),
+    ],
   };
 };
 

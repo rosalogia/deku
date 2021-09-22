@@ -152,14 +152,94 @@ let request_previous_blocks = (state: Node_state.t, block) =>
     request_protocol_snapshot();
   };
 
-let try_to_produce_block = (state, update_state) => {
+/** Returns true if it is time to start hashing a new state root.
+ */
+let is_new_state_root_epoch = (last_state_root_update, current_time) => {
+  /** The state root epoch determines how often the block producer
+    starts hashing a new state root. It is closely related to the
+    finality period (see notes in [try_to_produce_block]).
+
+    The faster hashing is, the shorter this time should be (resulting
+    in faster finality).
+ */
+  let state_root_hash_epoch = 60.0;
+  /** to prevent changing the validator just because of network jittering
+    this introduce a delay between can receive a block with new state
+    1s choosen here but any reasonable time will make it */
+  let avoid_jitter = 1.0;
+  current_time
+  -. last_state_root_update
+  -. avoid_jitter >= state_root_hash_epoch;
+};
+
+let try_hash_new_state =
+    (
+      ~state: Node_state.t,
+      ~current_time,
+      ~update_state: Node_state.t => Node_state.t,
+    ) => {
+  let (_, _, last_state_root_update) = List.hd(state.state_root_hash_list);
+  // If it's a new epoch then start hashing the current state
+  if (is_new_state_root_epoch(last_state_root_update, current_time)) {
+    open Lwt.Infix;
+    // Infix operators used because `let.async` transforms whole function
+    // into Lwt monad. Instead, we use infix and ignore the result because
+    // we only care about the side effects, not the result.
+    let _ =
+      // Lwt_domain.detach causes the function to run in a separate thread.
+      Lwt_domain.detach(
+        (s: Node_state.t) =>
+          (
+            Protocol.hash(s.protocol),
+            Validators.hash(s.protocol.validators),
+          ),
+        state,
+      )
+      // When the promise resolves, the following callback is run in main thread.
+      >|= (
+        (((state_root_hash, _), validator_hash)) => {
+          // The state passed to this function may be stale so we get the current state.
+          let current_state = get_state^();
+          ignore @@
+          update_state({
+            ...current_state,
+            // Prepend the calculated hash to the list of hashes
+            state_root_hash_list: [
+              (state_root_hash, validator_hash, current_time),
+              ...current_state.state_root_hash_list,
+            ],
+          });
+        }
+      );
+    ();
+  } else {
+    ();
+  };
+};
+
+let try_to_produce_block =
+    (state: Node_state.t, update_state: Node_state.t => Node_state.t) => {
+  // Side effect: hashes a new state in another
+  // thread, udpating the server state with the new hash.
+  try_hash_new_state(~state, ~current_time=Unix.time(), ~update_state);
+
   let.assert () = (
     `Not_current_block_producer,
     is_current_producer(state, ~key=state.identity.t),
   );
-
-  // TODO: avoid spam? how?
-  let block = produce_block(state);
+  // The finality period is the interval between state root hash updates.
+  // The as determined by the following line, the block producer always
+  // emits blocks with the most recent state root hash he has. Ostensibly
+  // it should not take longer than state root epoch to hash a state root.
+  // If this hold, the finality period is equal to 1 state root epoch.
+  // If the block producer hashes slower than this rate, then the finality
+  // period increases. If other validators hash slower than the finality period
+  // and slower than the block producer, then they will begin to fall behind,
+  // eventually getting out of sync if they
+  // fall far enough behind.
+  // TODO: validate that this all true.
+  let (state_root_hash, _, _) = List.hd(state.state_root_hash_list);
+  let block = produce_block(state_root_hash, state);
   let signature = sign(~key=state.identity.key, block);
   let state =
     append_signature(state, update_state, ~signature, ~hash=block.hash);

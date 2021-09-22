@@ -69,13 +69,15 @@ let is_signable = (state: Node_state.t, block) => {
 
 let sign = (~key, block) => Block.sign(~key, block);
 
-let produce_block = (state: Node_state.t) =>
+let produce_block = (state_root_hash, state: Node_state.t) => {
   Block.produce(
+    ~state_root_hash,
     ~state=state.protocol,
     ~author=state.identity.t,
     ~main_chain_ops=state.pending_main_ops,
     ~side_chain_ops=state.pending_side_ops,
   );
+};
 
 let is_valid_block_height = (state: Node_state.t, block_height) =>
   block_height >= 1L && block_height <= state.protocol.block_height;
