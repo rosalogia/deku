@@ -156,10 +156,10 @@ let genesis =
     ~author=Address.genesis_address,
   );
 
-let produce = (~state_root_hash, ~state: Protocol_state.t) => {
+let produce = (~state: Protocol_state.t) => {
   make(
     ~previous_hash=state.last_block_hash,
-    ~state_root_hash,
+    ~state_root_hash=state.state_root_hash,
     ~handles_hash=Ledger.handles_root_hash(state.ledger),
     ~validators_hash=state.validators_hash,
     ~block_height=Int64.add(state.block_height, 1L),

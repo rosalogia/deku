@@ -172,48 +172,37 @@ let is_new_state_root_epoch = (last_state_root_update, current_time) => {
   -. avoid_jitter >= state_root_hash_epoch;
 };
 
-let try_hash_new_state =
-    (
-      ~state: Node_state.t,
-      ~current_time,
-      ~update_state: Node_state.t => Node_state.t,
-    ) => {
-  let (_, _, last_state_root_update) = List.hd(state.state_root_hash_list);
+let try_hash_new_state = (~state, ~current_time, ~update_state) =>
   // If it's a new epoch then start hashing the current state
-  if (is_new_state_root_epoch(last_state_root_update, current_time)) {
-    // Infix operators used because `let.async` transforms whole function
-    // into Lwt monad. Instead, we use infix and ignore the result because
-    // we only care about the side effects, not the result.
+  if (is_new_state_root_epoch(
+        state.Node_state.protocol.last_state_root_update,
+        current_time,
+      )) {
     Lwt.async(() => {
       // Lwt_domain.detach causes the function to run in a separate thread.
-      let.await ((state_root_hash, _), validator_hash) =
+      // When the promise resolves, the rest of the function is run in main thread.
+      let.await (state_root_hash, _) =
         Lwt_domain.detach(
-          (s: Node_state.t) =>
-            (
-              Protocol.hash(s.protocol),
-              Validators.hash(s.protocol.validators),
-            ),
+          (s: Node_state.t) => Protocol.hash(s.protocol),
           state,
         );
-      // When the promise resolves, the rest of the function is run in main thread.
-
       // The state passed to this function may be stale so we get the current state.
       let current_state = get_state^();
       let _ =
         update_state({
           ...current_state,
-          // Prepend the calculated hash to the list of hashes
-          state_root_hash_list: [
-            (state_root_hash, validator_hash, current_time),
-            ...current_state.state_root_hash_list,
-          ],
+          Node_state.protocol: {
+            ...current_state.protocol,
+            state_root_hash,
+            // FIXME: is this correct, or do we want to store the time in a variable above?
+            last_state_root_update: Unix.time(),
+          },
         });
       Lwt.return();
     });
   } else {
     ();
   };
-};
 
 let try_to_produce_block =
     (state: Node_state.t, update_state: Node_state.t => Node_state.t) => {
@@ -236,8 +225,7 @@ let try_to_produce_block =
   // eventually getting out of sync if they
   // fall far enough behind.
   // TODO: validate that this all true.
-  let (state_root_hash, _, _) = List.hd(state.state_root_hash_list);
-  let block = produce_block(state_root_hash, state);
+  let block = produce_block(state);
   let signature = sign(~key=state.identity.key, block);
   let state =
     append_signature(state, update_state, ~signature, ~hash=block.hash);

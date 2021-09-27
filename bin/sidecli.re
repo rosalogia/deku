@@ -480,8 +480,6 @@ let produce_block = folder => {
   let address = Address.of_key(identity.key);
   let block =
     Block.produce(
-      // FIXME: this might be wrong. I think it would only work for genesis.
-      ~state_root_hash=state.state_root_hash,
       ~state,
       ~author=address,
       ~main_chain_ops=[],

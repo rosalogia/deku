@@ -21,7 +21,6 @@ let verify: (~signature: Signature.t, t) => bool;
 let genesis: t;
 let produce:
   (
-    ~state_root_hash: BLAKE2B.t,
     ~state: Protocol_state.t,
     ~author: Address.t,
     ~main_chain_ops: list(Main_chain.t),

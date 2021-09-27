@@ -47,7 +47,6 @@ describe("protocol state", ({test, _}) => {
       Block.produce(
         // Genesis is a special case where we use the current state root
         // hash instead of the one from the previous finality period.
-        ~state_root_hash=Block.genesis.state_root_hash,
         ~state,
         ~author,
         ~main_chain_ops=main,
