@@ -181,37 +181,35 @@ let try_hash_new_state =
   let (_, _, last_state_root_update) = List.hd(state.state_root_hash_list);
   // If it's a new epoch then start hashing the current state
   if (is_new_state_root_epoch(last_state_root_update, current_time)) {
-    open Lwt.Infix;
     // Infix operators used because `let.async` transforms whole function
     // into Lwt monad. Instead, we use infix and ignore the result because
     // we only care about the side effects, not the result.
-    let _ =
+    Lwt.async(() => {
       // Lwt_domain.detach causes the function to run in a separate thread.
-      Lwt_domain.detach(
-        (s: Node_state.t) =>
-          (
-            Protocol.hash(s.protocol),
-            Validators.hash(s.protocol.validators),
-          ),
-        state,
-      )
-      // When the promise resolves, the following callback is run in main thread.
-      >|= (
-        (((state_root_hash, _), validator_hash)) => {
-          // The state passed to this function may be stale so we get the current state.
-          let current_state = get_state^();
-          ignore @@
-          update_state({
-            ...current_state,
-            // Prepend the calculated hash to the list of hashes
-            state_root_hash_list: [
-              (state_root_hash, validator_hash, current_time),
-              ...current_state.state_root_hash_list,
-            ],
-          });
-        }
-      );
-    ();
+      let.await ((state_root_hash, _), validator_hash) =
+        Lwt_domain.detach(
+          (s: Node_state.t) =>
+            (
+              Protocol.hash(s.protocol),
+              Validators.hash(s.protocol.validators),
+            ),
+          state,
+        );
+      // When the promise resolves, the rest of the function is run in main thread.
+
+      // The state passed to this function may be stale so we get the current state.
+      let current_state = get_state^();
+      let _ =
+        update_state({
+          ...current_state,
+          // Prepend the calculated hash to the list of hashes
+          state_root_hash_list: [
+            (state_root_hash, validator_hash, current_time),
+            ...current_state.state_root_hash_list,
+          ],
+        });
+      Lwt.return();
+    });
   } else {
     ();
   };
