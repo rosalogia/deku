@@ -205,7 +205,7 @@ let try_hash_new_state = (~state, ~current_time, ~update_state) =>
   };
 
 let try_to_produce_block =
-    (state: Node_state.t, update_state: Node_state.t => Node_state.t) => {
+    (state, update_state) => {
   // Side effect: hashes a new state in another
   // thread, udpating the server state with the new hash.
   try_hash_new_state(~state, ~current_time=Unix.time(), ~update_state);
