@@ -1,5 +1,6 @@
 (library
  (name node)
  (libraries protocol uri helpers piaf)
+ (inline_tests)
  (preprocess
-  (pps ppx_deriving_yojson ppx_deriving.ord)))
+  (pps ppx_deriving_yojson ppx_deriving.ord ppx_inline_test)))
