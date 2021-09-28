@@ -204,8 +204,20 @@ let try_hash_new_state = (~state, ~current_time, ~update_state) =>
     ();
   };
 
-let try_to_produce_block =
-    (state, update_state) => {
+type effect =
+  | SignBlock(Block.t);
+
+// let handle_state_hash_receive_block =
+//     (Node_state.{done_hashes, pending_hashes}, _incoming_block) => {
+
+//    open Node_state;
+//   // if
+//   Node_state.{done_hashes, pending_hashes};
+// };
+//
+// let%test "name" = ;
+
+let try_to_produce_block = (state, update_state) => {
   // Side effect: hashes a new state in another
   // thread, udpating the server state with the new hash.
   try_hash_new_state(~state, ~current_time=Unix.time(), ~update_state);
@@ -233,14 +245,27 @@ let try_to_produce_block =
   Ok();
 };
 
-let try_to_sign_block = (state, update_state, block) =>
-  if (is_signable(state, block)) {
-    let signature = sign(~key=state.identity.key, block);
-    broadcast_signature(state, ~hash=block.hash, ~signature);
-    append_signature(state, update_state, ~hash=block.hash, ~signature);
+let try_to_sign_block = (state, update_state, block) => {
+  
+
+  let sign_if_signable = state =>
+    if (is_signable(state, block)) {
+      let signature = sign(~key=state.identity.key, block);
+      broadcast_signature(state, ~hash=block.hash, ~signature);
+      append_signature(state, update_state, ~hash=block.hash, ~signature);
+    } else {
+      state;
+    };
+
+  let Node_state.{state_root_hash_state, protocol: {state_root_hash, _}, _} = state;
+  if (block.state_root_hash == state_root_hash) {
+    sign_if_signable(state);
+  } else if (state_root_hash_is_in_done(state, ~state_root_hash)) {
+    assert(false);
   } else {
-    state;
+    assert(false);
   };
+};
 
 let rec try_to_apply_block = (state: Node_state.t, update_state, block) => {
   let.assert () = (

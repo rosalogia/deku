@@ -52,6 +52,8 @@ let is_current_producer = (state: Node_state.t, ~key) => {
   Some(current_producer.address == key);
 };
 
+
+
 // TODO: bad naming
 // TODO: check if block must have published a new snapshot
 let is_signable = (state: Node_state.t, block) => {
@@ -64,7 +66,7 @@ let is_signable = (state: Node_state.t, block) => {
   && !is_signed_by_self(state, ~hash=block.hash)
   && is_current_producer(state, ~key=block.author)
   && !has_next_block_to_apply(state, ~hash=block.hash)
-  && all_main_ops_are_known;
+  && all_main_ops_are_known
 };
 
 let sign = (~key, block) => Block.sign(~key, block);

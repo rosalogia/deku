@@ -10,6 +10,13 @@ type identity = {
 
 module Address_map: Map.S with type key = Address.t;
 module Uri_map: Map.S with type key = Uri.t;
+module State_root_hash_set: Set.S with type elt = BLAKE2B.t;
+
+type state_root_hash_state = {
+  done_hashes: State_root_hash_set.t,
+  pending_hashes: State_root_hash_set.t,
+};
+
 type t = {
   identity,
   trusted_validator_membership_change: Trusted_validators_membership_change.Set.t,
@@ -25,32 +32,12 @@ type t = {
   validators_uri: Address_map.t(Uri.t),
   recent_operation_results:
     BLAKE2B.Map.t([ | `Transaction | `Withdraw(Ledger.Handle.t)]),
-  /** A list of triples including:
-    - State root hash - an indentifier for a state root onto which you can apply
-          blocks and know the current state
-    - Validator hash - the hash of all the validators approved in corresponding
-          state root.
-    - Epoch of the state root hash - a timestampe generated when the hash
-          of the state root began to be created.
-
-    FIXME: clarify terminology of epoch vs finality period. Basically same thing.
-    (Actually I've started to clarify this more in flows.re [try_to_produce_block])
-
-    The state root starts with genesis, and then updates every finality
-    period (approximately every 60 seconds). This means you don't have to
-    download the entire history of the chain to derive the state corresponding
-    to a given block - only the state corresponding to its state root hash is required.
-
-    At the start of each new finality period, we start hashing the current
-    state, requiring every validator to finish hashing that same state before
-    the start of the next finality period. At the end of the finality
-    period, the state hash finished in that period becomes the hash used
-    in the next finality period. Because a block always points to the state
-    hash of the previous period, nodes does not need to wait for the expensive
-    operation of hashing to complete before they can apply a block, and can thus
-    hash the state asynchronously. */
-  state_root_hash_list: list((BLAKE2B.t, BLAKE2B.t, float)),
+  // FIXME: add docs
+  state_root_hash_state : state_root_hash_state,
 };
+
+let is_in_sync: t => bool;
+
 
 let make:
   (
