@@ -154,7 +154,87 @@ let request_previous_blocks = (state, block) =>
     request_protocol_snapshot();
   };
 
+/** Returns true if it is time to start hashing a new state root.
+ */
+let is_new_state_root_epoch = (last_state_root_update, current_time) => {
+  /** The state root epoch determines how often the block producer
+    starts hashing a new state root. It is closely related to the
+    finality period (see notes in [try_to_produce_block]).
+
+    The faster hashing is, the shorter this time should be (resulting
+    in faster finality (TODO: why does this affect finality again? Can't remember)).
+ */
+  let state_root_epcoh = 60.0;
+  /** to prevent changing the validator just because of network jittering
+    this introduce a delay between can receive a block with new state
+    1s choosen here but any reasonable time will make it */
+  let avoid_jitter = 1.0;
+  current_time -. last_state_root_update -. avoid_jitter >= state_root_epcoh;
+};
+
+/** Starts asynchronously hashing a new state if it's time to do so.
+
+    Side-effectfully updates the current [state_root_hash] and
+    [last_state_root_update] when done.
+ */
+let try_hash_new_state_root = (~state, ~current_time, ~update_state) =>
+  if (is_new_state_root_epoch(
+        state.State.protocol.last_state_root_update,
+        current_time,
+      )) {
+    Lwt.async(() => {
+      // Lwt_domain.detach causes the function to run in a separate thread.
+      // When the promise resolves, the rest of the function is run in main thread.
+      let.await (state_root_hash, _) =
+        Lwt_domain.detach((s: Node.t) => Protocol.hash(s.protocol), state);
+      // The state passed to this function may be stale so we get the current state.
+      let current_state = get_state^();
+      let _ =
+        update_state({
+          ...current_state,
+          State.protocol: {
+            ...current_state.protocol,
+            state_root_hash,
+            // FIXME: is this correct, or do we want to store the time in a variable above?
+            last_state_root_update: Unix.time(),
+          },
+        });
+      Lwt.return();
+    });
+  } else {
+    ();
+  };
+
 let try_to_produce_block = (state, update_state) => {
+  // Each block is associated with a particular state root hash.
+  // The state root starts with genesis, and then updates periodically.
+  // This means you don't have to download the entire history of the chain
+  // to derive the state corresponding to a given block - only the state
+  // corresponding to its state root hash is required.
+  //
+  // Because hashing a state is an expensive operation, we do it in parallel on separate
+  // thread. This allows the block producer to continue producing blocks even while
+  // the state root is being updated. We spawn these jobs on an interval known
+  // as the state root epoch (determined by [is_new_state_root_epoch]).
+  //
+  // The finality period is the "effective" rate of state root hash updates.
+  // Ostensibly it should not take longer than state root epoch to hash
+  // a state root.If this holds, the finality period is equal to 1 state root epoch.
+  // If the block producer hashes slower than this rate, then the finality
+  // period increases. If other validators hash slower than the finality period
+  // and slower than the block producer, then they will begin to fall behind,
+  // eventually getting out of sync if they fall far enough behind.
+  //
+  // TODO: validate that this all true.
+  //
+  // TODO: Currently, Protocol.make sets [last_state_root_update] to 0.0. This means
+  // we start hashing new state immediately, and it probably takes less than 60 seconds.
+  // This means there is a single case where finality period is less than state root epoch.
+  // Does this break things? I think it's ok while valdiators are doing sync hashing but
+  // not sure about when they start doing async hashing.
+  // Easy fix is to change Protocol.make to have [Unix.time()] for [last_state_root_update]
+  try_hash_new_state_root(~state, ~current_time=Unix.time(), ~update_state);
+
   let.assert () = (
     `Not_current_block_producer,
     is_current_producer(state, ~key=state.identity.t),
