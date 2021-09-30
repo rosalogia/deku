@@ -71,7 +71,7 @@ let uri = {
   Arg.(conv((parser, printer)));
 };
 
-let address = {
+let wallet_address = {
   open Tezos_interop.Key_hash;
   let parser = string =>
     Tezos_interop.Key_hash.of_string(string)
@@ -97,6 +97,19 @@ let address_tezos_interop = {
     Format.fprintf(fmt, "%s", Tezos_interop.Address.to_string(address));
   Arg.(conv((parser, printer)));
 };
+
+let address = {
+  let parser = string =>
+    string
+    |> Address.of_string
+    |> Option.to_result(
+         ~none=`Msg("Expected a sidechain address (public_key)"),
+       );
+  let printer = (fmt, address) =>
+    Format.fprintf(fmt, "%s", Address.to_string(address));
+  Arg.(conv((parser, printer)));
+};
+
 let amount = {
   let parser = string => {
     let.ok int =
@@ -222,7 +235,7 @@ let create_transaction = {
     let env = Arg.env_var("RECEIVER", ~doc);
     Arg.(
       required
-      & pos(2, some(address), None)
+      & pos(2, some(wallet_address), None)
       & info([], ~env, ~docv="receiver", ~doc)
     );
   };
@@ -894,6 +907,160 @@ let remove_trusted_validator = {
   );
 };
 
+// add/remove validator
+
+let info_propose_new_validator = {
+  let doc =
+    Printf.sprintf(
+      "Propose adding new validator to the network. %s", //TODO(callistonianembrace)
+      make_filename_from_address("address"),
+    );
+  Term.info(
+    "propose-new-validator",
+    ~version="%‌%VERSION%%",
+    ~doc,
+    ~exits,
+    ~man,
+  );
+};
+
+let propose_new_validator =
+    (folder_node, sender_wallet_file, validator_address) => {
+  open Networking;
+  let file = folder_node ++ "/identity.json";
+  let.await identity = Files.Identity.read(~file);
+  let.await block_level_response = request_block_level((), identity.uri);
+  let block_level = block_level_response.level;
+  let.await wallet = Files.Wallet.read(~file=sender_wallet_file);
+  let transaction =
+    Operation.Side_chain.sign(
+      ~secret=wallet.priv_key,
+      ~nonce=0l,
+      ~block_height=block_level,
+      ~source=wallet.address,
+      ~kind=Add_validator({address: validator_address}),
+    );
+
+  let.await () =
+    Networking.request_operation_gossip(
+      Networking.Operation_gossip.{operation: transaction},
+      identity.uri,
+    );
+  Format.printf(
+    "operation.hash: %s\n%!",
+    BLAKE2B.to_string(transaction.hash),
+  );
+
+  Lwt.return(`Ok());
+};
+
+let propose_new_validator = {
+  let address_from = {
+    let doc = "Address of the validator proposing the new validator";
+    let env = Arg.env_var("SENDER", ~doc);
+    Arg.(
+      required
+      & pos(1, some(wallet), None)
+      & info([], ~env, ~docv="sender", ~doc)
+    );
+  };
+
+  let validator_address = {
+    let doc = "Address of the proposed validator being added to the network";
+    let env = Arg.env_var("RECEIVER", ~doc);
+    Arg.(
+      required
+      & pos(2, some(address), None)
+      & info([], ~env, ~docv="receiver", ~doc)
+    );
+  };
+
+  Term.(
+    lwt_ret(
+      const(propose_new_validator)
+      $ folder_node
+      $ address_from
+      $ validator_address,
+    )
+  );
+};
+
+let info_propose_validator_removal = {
+  let doc =
+    Printf.sprintf(
+      "Propose removing a validator from the network. %s", //TODO(callistonianembrace)
+      make_filename_from_address("address"),
+    );
+  Term.info(
+    "propose-validator-removal",
+    ~version="%‌%VERSION%%",
+    ~doc,
+    ~exits,
+    ~man,
+  );
+};
+
+let propose_validator_removal =
+    (folder_node, sender_wallet_file, validator_address) => {
+  open Networking;
+  let file = folder_node ++ "/identity.json";
+  let.await identity = Files.Identity.read(~file);
+  let.await block_level_response = request_block_level((), identity.uri);
+  let block_level = block_level_response.level;
+  let.await wallet = Files.Wallet.read(~file=sender_wallet_file);
+  let transaction =
+    Operation.Side_chain.sign(
+      ~secret=wallet.priv_key,
+      ~nonce=0l,
+      ~block_height=block_level,
+      ~source=wallet.address,
+      ~kind=Remove_validator({address: validator_address}),
+    );
+
+  let.await () =
+    Networking.request_operation_gossip(
+      Networking.Operation_gossip.{operation: transaction},
+      identity.uri,
+    );
+  Format.printf(
+    "operation.hash: %s\n%!",
+    BLAKE2B.to_string(transaction.hash),
+  );
+
+  Lwt.return(`Ok());
+};
+
+let propose_validator_removal = {
+  let address_from = {
+    let doc = "Address of the validator proposing the new validator";
+    let env = Arg.env_var("SENDER", ~doc);
+    Arg.(
+      required
+      & pos(1, some(wallet), None)
+      & info([], ~env, ~docv="sender", ~doc)
+    );
+  };
+
+  let validator_address = {
+    let doc = "Address of the proposed validator being added to the network";
+    let env = Arg.env_var("RECEIVER", ~doc);
+    Arg.(
+      required
+      & pos(2, some(address), None)
+      & info([], ~env, ~docv="receiver", ~doc)
+    );
+  };
+
+  Term.(
+    lwt_ret(
+      const(propose_validator_removal)
+      $ folder_node
+      $ address_from
+      $ validator_address,
+    )
+  );
+};
+
 // Run the CLI
 
 let () = {
@@ -913,6 +1080,8 @@ let () = {
       (setup_node, info_setup_node),
       (add_trusted_validator, info_add_trusted_validator),
       (remove_trusted_validator, info_remove_trusted_validator),
+      (propose_new_validator, info_propose_new_validator),
+      (propose_validator_removal, info_propose_validator_removal),
       (self, info_self),
     ],
   );
