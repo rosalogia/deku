@@ -49,10 +49,10 @@ let is_signed_by_self = (state, ~hash) => {
   Some(Signatures.is_self_signed(signatures));
 };
 
-let is_current_producer = (state, ~key) => {
+let is_current_producer = (state, ~key_hash) => {
   let.default () = false;
   let.some current_producer = get_current_block_producer(state.Node.protocol);
-  Some(current_producer.address == key);
+  Some(current_producer.wallet == key_hash);
 };
 
 // TODO: bad naming
@@ -78,13 +78,13 @@ let is_signable = (state, block) => {
       switch (h.Operation.Side_chain.kind) {
       | Add_validator(validator) =>
         Trusted_validators_membership_change.Set.mem(
-          {address: validator.address, action: Add},
+          {wallet: validator.wallet, action: Add},
           trusted_validator_membership_change,
         )
         && current_time > next_allowed_membership_change_timestamp
       | Remove_validator(validator) =>
         Trusted_validators_membership_change.Set.mem(
-          {address: validator.address, action: Remove},
+          {wallet: validator.wallet, action: Remove},
           trusted_validator_membership_change,
         )
         && current_time > next_allowed_membership_change_timestamp
@@ -93,7 +93,7 @@ let is_signable = (state, block) => {
     });
   is_next(state, block)
   && !is_signed_by_self(state, ~hash=block.hash)
-  && is_current_producer(state, ~key=block.author)
+  && is_current_producer(state, ~key_hash=block.author)
   && !has_next_block_to_apply(state, ~hash=block.hash)
   && all_main_ops_are_known
   && contains_only_trusted_add_validator_op(block.side_chain_ops);
@@ -174,12 +174,12 @@ let find_random_validator_uri = state => {
   let rec safe_validator_uri = () => {
     let validator =
       List.nth(validators, random_int(List.length(validators)));
-    if (state.Node.identity.t == validator.address) {
+    if (state.Node.identity.t == validator.wallet) {
       safe_validator_uri();
     } else {
       // TODO: this blown up if there is no validator uri registered
       switch (
-        Node.Address_map.find_opt(validator.address, state.validators_uri)
+        Node.Wallet_map.find_opt(validator.wallet, state.validators_uri)
       ) {
       | Some(uri) => uri
       | None => safe_validator_uri()

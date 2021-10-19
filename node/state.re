@@ -4,11 +4,11 @@ open Protocol;
 [@deriving yojson]
 type identity = {
   key: Address.key,
-  t: Address.t,
+  t: Wallet.t,
   uri: Uri.t,
 };
 
-module Address_map = Map.Make(Address);
+module Wallet_map = Map.Make(Wallet);
 module Uri_map = Map.Make(Uri);
 
 type t = {
@@ -27,7 +27,7 @@ type t = {
   // TODO: clean this once in a while
   // TODO: clean after nonce is used
   uri_state: Uri_map.t(string),
-  validators_uri: Address_map.t(Uri.t),
+  validators_uri: Wallet_map.t(Uri.t),
   // TODO: use proper variants in the future
   // TODO: this also needs to be cleaned in the future
   recent_operation_results:
@@ -52,10 +52,11 @@ let make =
   let initial_block = Block.genesis;
   let initial_protocol = Protocol.make(~initial_block);
   let initial_signatures =
-    Signatures.make(~self_key=identity.t) |> Signatures.set_signed;
+    Signatures.make(~self_key=Address.of_key(identity.key))
+    |> Signatures.set_signed;
 
   let initial_block_pool =
-    Block_pool.make(~self_key=identity.t)
+    Block_pool.make(~self_key=Address.of_key(identity.key))
     |> Block_pool.append_block(initial_block);
   let initial_snapshots = {
     let initial_snapshot = Protocol.hash(initial_protocol);
@@ -84,24 +85,30 @@ let try_to_commit_state_hash = (~old_state, state, block, signatures) => {
   let signatures_map =
     signatures
     |> Signatures.to_list
-    |> List.map(Signature.signature_to_tezos_signature_by_address)
+    |> List.map(signature => {
+         let (address, signature) =
+           Signature.signature_to_tezos_signature_by_address(signature);
+         (Wallet.of_address(address), signature);
+       })
     |> List.to_seq
-    |> Address_map.of_seq;
+    |> Wallet_map.of_seq;
 
   let validators =
     state.protocol.validators
     |> Validators.to_list
     |> List.map(validator =>
-         Tezos_interop.Key.Ed25519(validator.Validators.address)
+         Tezos_interop.Key_hash.Ed25519(
+           Wallet.address_to_blake(validator.Validators.wallet),
+         )
        );
   let signatures =
     old_state.protocol.validators
     |> Validators.to_list
-    |> List.map(validator => validator.Validators.address)
-    |> List.map(address =>
+    |> List.map(validator => validator.Validators.wallet)
+    |> List.map(wallet =>
          (
-           Tezos_interop.Key.Ed25519(address),
-           Address_map.find_opt(address, signatures_map),
+           Tezos_interop.Key_hash.Ed25519(Wallet.address_to_blake(wallet)),
+           Wallet_map.find_opt(wallet, signatures_map),
          )
        );
 

@@ -6,7 +6,8 @@ describe("validators", ({test, _}) => {
   let make_validator = () => {
     open Crypto;
     let (_key, address) = Ed25519.generate();
-    Validators.{address: address};
+    let wallet = Wallet.of_address(address);
+    Validators.{wallet: wallet};
   };
   let setup_two = () => {
     let a = make_validator();
@@ -91,16 +92,16 @@ describe("validators", ({test, _}) => {
     let (t, a, b) = setup_two();
     expect.equal(current(t), Some(a));
 
-    let t = update_current(b.address, t);
+    let t = update_current(b.wallet, t);
     expect.equal(current(t), Some(b));
 
     // ensure this is a noop
-    expect.equal(update_current(b.address, t), t);
+    expect.equal(update_current(b.wallet, t), t);
 
     // ensure it is None when not a validator
     // TODO: is this a good behavior?
     let unknown = make_validator();
-    expect.equal(update_current(unknown.address, t) |> current, None);
+    expect.equal(update_current(unknown.wallet, t) |> current, None);
     ();
   });
   // TODO: hash

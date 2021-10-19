@@ -157,7 +157,7 @@ let request_previous_blocks = (state, block) =>
 let try_to_produce_block = (state, update_state) => {
   let.assert () = (
     `Not_current_block_producer,
-    is_current_producer(state, ~key=state.identity.t),
+    is_current_producer(state, ~key_hash=state.identity.t),
   );
 
   // TODO: avoid spam? how?
@@ -400,8 +400,10 @@ let register_uri = (state, update_state, ~uri, ~signature) => {
     update_state({
       ...state,
       validators_uri:
-        Node.Address_map.add(
-          Signature.public_key(signature),
+        Node.Wallet_map.add(
+          // We may change the signature type later, so
+          // let's be careful about this
+          Signature.public_key(signature) |> Wallet.of_address,
           uri,
           state.validators_uri,
         ),
@@ -438,7 +440,7 @@ let request_ticket_balance = (state, ~ticket, ~address) =>
 let trusted_validators_membership =
     (~file, ~persist, state, update_state, request) => {
   open Networking.Trusted_validators_membership_change;
-  let {signature, payload: {address, action} as payload} = request;
+  let {signature, payload: {wallet, action} as payload} = request;
   let payload_hash =
     payload |> payload_to_yojson |> Yojson.Safe.to_string |> BLAKE2B.hash;
   let.assert () = (
@@ -454,12 +456,12 @@ let trusted_validators_membership =
     switch (action) {
     | Add =>
       Trusted_validators_membership_change.Set.add(
-        {action: Add, address},
+        {action: Add, wallet},
         state.Node.trusted_validator_membership_change,
       )
     | Remove =>
       Trusted_validators_membership_change.Set.remove(
-        {action: Remove, address},
+        {action: Remove, wallet},
         state.Node.trusted_validator_membership_change,
       )
     };

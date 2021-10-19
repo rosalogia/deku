@@ -395,15 +395,17 @@ describe("consensus", ({test, _}) => {
 
   test("hash_validators", ({expect, _}) => {
     let hash =
-      hash_validators([
+      [
         key_exn("edpkvQuAn9BeaDQLzudrPL2zigNRQSmFvKJ7xWN1QmjDjQHj3dBrEZ"),
         key_exn("edpkvE3Ysq17HFzBBSQeAX87RE3smYZf1rHHpKu1LJdaFAhW8G7SNu"),
         key_exn("edpktq5HiqUkHTyoBQETvzbyaiwtKQkaBEPkwgZyfMqhRajRuLpWR7"),
         key_exn("edpkuNpThN8QeagEdvjN3o5R7PSic85cwiXHa61vNpRAE65FNV5mJH"),
-      ]);
+      ]
+      |> List.map(Key_hash.of_key)
+      |> hash_validators;
     let hash = BLAKE2B.to_string(hash);
     expect.string(hash).toEqual(
-      "546d2bb2375cc919efc81a103a7ad3bd1227546b320f275e357bd9a5d5eef946",
+      "6d6ecacbc858e3a89d87f0d9bd76b0c11b07aa95191129104395d17c6c96d36b",
     );
   });
   test("hash_block", ({expect, _}) => {

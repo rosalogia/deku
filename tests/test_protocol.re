@@ -24,9 +24,7 @@ describe("protocol state", ({test, _}) => {
     };
     let validators = {
       open Helpers;
-      let.default () =
-        state.validators
-        |> Validators.add({address: Wallet.get_pub_key(key_wallet)});
+      let.default () = state.validators |> Validators.add({wallet: wallet});
       validators;
     };
     let state = {...state, validators};
@@ -38,7 +36,7 @@ describe("protocol state", ({test, _}) => {
       open Helpers;
       let.default () = {
         let validator = state.validators |> Validators.current |> Option.get;
-        validator.address;
+        validator.wallet;
       };
       author;
     };

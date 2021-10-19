@@ -1,7 +1,8 @@
 type blake2b = bytes
 
 (* store hash *)
-type validator = key
+type validator = key_hash
+type validator_key = key
 type validators = validator list
 
 (* Root_hash_update contract *)
@@ -27,6 +28,7 @@ type root_hash_action = {
   (* TODO: performance, can this blown up? *)
   validators: validators;
 
+  current_validator_keys: validator_key list;
   signatures: signatures;
 }
 
@@ -68,31 +70,35 @@ let root_hash_check_hash (root_hash_update: root_hash_action) =
   )
 
 let rec root_hash_check_signatures
-  (validators, signatures, block_hash, remaining:
-    validators * signatures * blake2b * int) : unit =
-    match (validators, signatures) with
+  (validator_keys, validators, signatures, block_hash, remaining:
+    validator_key list * validators * signatures * blake2b * int) : unit =
+    match (validator_keys, validators, signatures) with
     (* already signed *)
-    | ([], []) ->
+    | ([], [], []) ->
       (* TODO: this can be short circuited *)
       if remaining > 0 then
         failwith "not enough signatures"
-    | ((_ :: v_tl), (None :: sig_tl)) ->
-      root_hash_check_signatures (v_tl, sig_tl, block_hash, remaining)
-    | ((validator :: v_tl), (Some signature :: sig_tl)) ->
-      if Crypto.check validator signature block_hash
+    | ((validator_key :: vk_tl), (validator :: v_tl), (Some signature :: sig_tl)) ->
+      if Crypto.check validator_key signature block_hash
       then
-        root_hash_check_signatures (v_tl, sig_tl, block_hash, (remaining - 1))
+        if (Crypto.hash_key validator_key) = validator then
+          root_hash_check_signatures (vk_tl, v_tl, sig_tl, block_hash, (remaining - 1))
+        else failwith "validator_key does not match validator hash"
       else failwith "bad signature"
-    | (_, _) ->
+    | ((_ :: vk_tl), (_ :: v_tl), (None :: sig_tl)) ->
+      root_hash_check_signatures (vk_tl, v_tl, sig_tl, block_hash, remaining)
+    | (_, _, _) ->
       failwith "validators and signatures have different size"
 
 let root_hash_check_signatures
+  (action: root_hash_action)
   (storage: root_hash_storage)
   (signatures: signatures)
   (block_hash: blake2b) =
     let validators_length = (int (List.length storage.current_validators)) in
     let required_validators = (validators_length * 2) / 3 in
     root_hash_check_signatures (
+      action.current_validator_keys,
       storage.current_validators,
       signatures,
       block_hash,
@@ -111,7 +117,7 @@ let root_hash_main
 
     let () = root_hash_check_block_height storage block_height in
     let () = root_hash_check_hash root_hash_update in
-    let () = root_hash_check_signatures storage signatures block_hash in
+    let () = root_hash_check_signatures root_hash_update storage signatures block_hash in
 
     {
       current_block_hash = block_hash;

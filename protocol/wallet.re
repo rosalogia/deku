@@ -22,6 +22,7 @@ let make_wallet = () => {
 };
 let address_to_blake = t => t;
 let address_of_blake = t => t;
+
 let address_to_string = wallet =>
   Tezos_interop.Key_hash.(Ed25519(wallet |> address_to_blake) |> to_string);
 let address_of_string = string =>
@@ -34,3 +35,5 @@ let of_yojson = json => {
   let.ok string = [%of_yojson: string](json);
   address_of_string(string) |> Option.to_result(~none="invalid address");
 };
+
+let genesis_wallet = Address.genesis_address |> of_address;

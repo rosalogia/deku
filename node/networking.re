@@ -68,8 +68,8 @@ let broadcast_to_list = (endpoint, uris, data) =>
 
 let broadcast_to_validators = (endpoint, state, data) =>
   Validators.to_list(state.protocol.validators)
-  |> List.filter_map((Validators.{address, _}) =>
-       State.Address_map.find_opt(address, state.validators_uri)
+  |> List.filter_map((Validators.{wallet, _}) =>
+       State.Wallet_map.find_opt(wallet, state.validators_uri)
      )
   |> (uris => broadcast_to_list(endpoint, uris, data));
 
@@ -193,7 +193,7 @@ module Trusted_validators_membership_change = {
   [@deriving yojson]
   type payload = {
     action,
-    address: Address.t,
+    wallet: Wallet.t,
   };
   [@deriving yojson]
   type request = {

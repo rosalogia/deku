@@ -11,4 +11,6 @@ let make_wallet: unit => (Ed25519.Secret.t, t);
 let make_address: unit => t;
 let address_to_blake: t => BLAKE2B_20.t;
 let address_of_blake: BLAKE2B_20.t => t;
+let address_of_string: string => option(t);
 let address_to_string: t => string;
+let genesis_wallet: t;

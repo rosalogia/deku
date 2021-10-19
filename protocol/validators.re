@@ -2,7 +2,7 @@ open Helpers;
 
 // TODO: we should avoid dead validators to avoid double timeout, A(dead) -> B(dead) -> C
 [@deriving (yojson, ord)]
-type validator = {address: Address.t};
+type validator = {wallet: Wallet.t};
 
 [@deriving yojson]
 type t = {
@@ -26,9 +26,9 @@ let after_current = (n, t) => {
   let index = relative_index < 0 ? t.length + relative_index : relative_index;
   List.nth_opt(t.validators, index);
 };
-let update_current = (address, t) => {
+let update_current = (wallet, t) => {
   let validator =
-    t.validators |> List.find_opt(validator => validator.address == address);
+    t.validators |> List.find_opt(validator => validator.wallet == wallet);
   {...t, current: validator};
 };
 let empty = {current: None, validators: [], length: 0};
@@ -53,8 +53,9 @@ let remove = (validator, t) => {
   {current, validators, length};
 };
 
+
 let hash = t => {
   open Tezos_interop;
-  let validators = List.map(t => Key.Ed25519(t.address), t.validators);
+  let validators = List.map(t => Key_hash.Ed25519(t.wallet |> Wallet.address_to_blake), t.validators);
   Consensus.hash_validators(validators);
 };

@@ -4,11 +4,11 @@ open Protocol;
 [@deriving yojson]
 type identity = {
   key: Address.key,
-  t: Address.t,
+  t: Wallet.t,
   uri: Uri.t,
 };
 
-module Address_map: Map.S with type key = Address.t;
+module Wallet_map: Map.S with type key = Wallet.t;
 module Uri_map: Map.S with type key = Uri.t;
 type t = {
   identity,
@@ -22,7 +22,7 @@ type t = {
   snapshots: Snapshots.t,
   // networking
   uri_state: Uri_map.t(string),
-  validators_uri: Address_map.t(Uri.t),
+  validators_uri: Wallet_map.t(Uri.t),
   recent_operation_results:
     BLAKE2B.Map.t(
       [
@@ -40,7 +40,7 @@ let make:
     ~trusted_validator_membership_change: Trusted_validators_membership_change.Set.t,
     ~interop_context: Tezos_interop.Context.t,
     ~data_folder: string,
-    ~initial_validators_uri: Address_map.t(Uri.t)
+    ~initial_validators_uri: Wallet_map.t(Uri.t)
   ) =>
   t;
 let apply_block:

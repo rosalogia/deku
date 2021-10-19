@@ -1,4 +1,6 @@
 _esy
+_build
+tags
 node_modules
 data
 *.install

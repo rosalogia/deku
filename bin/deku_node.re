@@ -220,7 +220,7 @@ let node = {
       |> List.mapi((i, validator) => {
            (
              switch (validator) {
-             | Tezos_interop.Key.Ed25519(k) => k
+             | Tezos_interop.Key.Ed25519(k) => Wallet.of_address(k)
              },
              Printf.sprintf("http://localhost:444%d", i) |> Uri.of_string,
            )
@@ -229,9 +229,9 @@ let node = {
     };
   let initial_validators_uri =
     List.fold_left(
-      (validators_uri, (address, uri)) =>
-        State.Address_map.add(address, uri, validators_uri),
-      State.Address_map.empty,
+      (validators_uri, (wallet, uri)) =>
+        State.Wallet_map.add(wallet, uri, validators_uri),
+      State.Wallet_map.empty,
       validators,
     );
   let node =
@@ -248,8 +248,8 @@ let node = {
       ...node.protocol,
       validators:
         List.fold_left(
-          (validators, (address, _)) =>
-            Validators.add({address: address}, validators),
+          (validators, (wallet, _)) =>
+            Validators.add({wallet: wallet}, validators),
           Validators.empty,
           validators,
         ),

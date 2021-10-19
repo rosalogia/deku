@@ -481,14 +481,16 @@ let info_produce_block = {
   Term.info("produce-block", ~version="%‌%VERSION%%", ~doc, ~exits, ~man);
 };
 
-let produce_block = node_folder => {
-  let.await identity = read_identity(~node_folder);
-  let.await state = read_state(~node_folder);
-  let address = Address.of_key(identity.key);
+let produce_block = folder => {
+  let file = folder ++ "/identity.json";
+  let.await identity = Files.Identity.read(~file);
+  let.await state: Protocol.t =
+    Lwt_io.with_file(~mode=Input, folder ++ "/state.bin", Lwt_io.read_value);
+  let wallet = identity.t;
   let block =
     Block.produce(
       ~state,
-      ~author=address,
+      ~author=wallet,
       ~main_chain_ops=[],
       ~side_chain_ops=[],
     );
@@ -627,7 +629,6 @@ let setup_tezos = {
 };
 
 // Term that just shows the help command, to use when no arguments are passed
-
 let show_help = {
   let doc = "a tool for interacting with the WIP Tezos Sidechain";
   let sdocs = Manpage.s_common_options;
@@ -642,16 +643,14 @@ let info_self = {
   let doc = "Shows identity key and address of the node.";
   Term.info("self", ~version="%‌%VERSION%%", ~doc, ~exits, ~man);
 };
+
 let self = node_folder => {
   let.await identity = read_identity(~node_folder);
-  Format.printf("key: %s\n", Address.to_string(identity.t));
-  Format.printf(
-    "address: %s\n",
-    Wallet.(of_address(identity.t) |> address_to_string),
-  );
+  Format.printf("key_hash: %s\n", Wallet.address_to_string(identity.t));
   Format.printf("uri: %s\n", Uri.to_string(identity.uri));
   await(`Ok());
 };
+
 let self = {
   let folder_dest = {
     let docv = "folder_dest";
@@ -673,10 +672,10 @@ let info_add_trusted_validator = {
   );
 };
 
-let add_trusted_validator = (node_folder, address) => {
+let add_trusted_validator = (node_folder, wallet) => {
   open Networking;
   let.await identity = read_identity(~node_folder);
-  let payload = Trusted_validators_membership_change.{address, action: Add};
+  let payload = Trusted_validators_membership_change.{wallet, action: Add};
   let payload_json_str =
     payload
     |> Trusted_validators_membership_change.payload_to_yojson
@@ -691,25 +690,41 @@ let add_trusted_validator = (node_folder, address) => {
   await(`Ok());
 };
 
-let address_t = {
+// let address_t = {
+//   let parser = string =>
+//     string
+//     |> Protocol.Address.of_string
+//     |> Option.to_result(~none=`Msg("Expected a validator address."));
+//   let printer = (fmt, address) =>
+//     Format.fprintf(fmt, "%s", Protocol.Address.to_string(address));
+//   Arg.(conv((parser, printer)));
+// };
+
+let wallet_t = {
   let parser = string =>
     string
-    |> Protocol.Address.of_string
+    |> Protocol.Wallet.address_of_string
     |> Option.to_result(~none=`Msg("Expected a validator address."));
-  let printer = (fmt, address) =>
-    Format.fprintf(fmt, "%s", Protocol.Address.to_string(address));
+  let printer = (fmt, wallet) =>
+    Format.fprintf(fmt, "%s", Protocol.Wallet.address_to_string(wallet));
   Arg.(conv((parser, printer)));
 };
 
-let validator_address = {
-  let docv = "validator_address";
-  let doc = "The validator address to be added/removed as trusted";
-  Arg.(required & pos(2, some(address_t), None) & info([], ~docv, ~doc));
+// let validator_address = {
+//   let docv = "validator_address";
+//   let doc = "The validator address to be added/removed as trusted";
+//   Arg.(required & pos(2, some(address_t), None) & info([], ~docv, ~doc));
+// };
+
+let validator_wallet = {
+  let docv = "validator_wallet";
+  let doc = "The validator wallet to be added/removed as trusted";
+  Arg.(required & pos(2, some(wallet_t), None) & info([], ~docv, ~doc));
 };
 
 let add_trusted_validator = {
   Term.(
-    lwt_ret(const(add_trusted_validator) $ folder_node $ validator_address)
+    lwt_ret(const(add_trusted_validator) $ folder_node $ validator_wallet)
   );
 };
 
@@ -724,11 +739,10 @@ let info_remove_trusted_validator = {
   );
 };
 
-let remove_trusted_validator = (node_folder, address) => {
+let remove_trusted_validator = (node_folder, wallet) => {
   open Networking;
   let.await identity = read_identity(~node_folder);
-  let payload =
-    Trusted_validators_membership_change.{address, action: Remove};
+  let payload = Trusted_validators_membership_change.{wallet, action: Remove};
   let payload_json_str =
     payload
     |> Trusted_validators_membership_change.payload_to_yojson
@@ -745,9 +759,7 @@ let remove_trusted_validator = (node_folder, address) => {
 
 let remove_trusted_validator = {
   Term.(
-    lwt_ret(
-      const(remove_trusted_validator) $ folder_node $ validator_address,
-    )
+    lwt_ret(const(remove_trusted_validator) $ folder_node $ validator_wallet)
   );
 };
 
